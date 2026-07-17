@@ -1,0 +1,6 @@
+{
+  "name": "Vesta AI",
+  "description": "AI-powered room organization and decluttering planner using real image scans and interactive guides.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
