@@ -18,7 +18,10 @@ import {
   ArrowRight,
   ShoppingBag,
   RefreshCw,
-  Maximize2
+  Maximize2,
+  Sliders,
+  Columns,
+  Eye
 } from 'lucide-react';
 
 // Type declarations
@@ -49,6 +52,7 @@ interface Room {
   id: string;
   name: string;
   image?: string; // base64 encoded or unsplash URL
+  imageAfter?: string; // base64 encoded or unsplash URL for after state
   isUnsplash?: boolean; // to check if it's a default loaded room
   lastScanned?: string;
   stats?: {
@@ -67,6 +71,7 @@ const INITIAL_ROOMS: Room[] = [
     id: 'room-living',
     name: 'Living Room',
     image: 'https://images.unsplash.com/photo-1594026112284-02bb6f3352fe?ixlib=rb-1.2.1&auto=format&fit=crop&w=1200&q=80',
+    imageAfter: 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?ixlib=rb-1.2.1&auto=format&fit=crop&w=1200&q=80',
     isUnsplash: true,
     lastScanned: '12 mins ago',
     stats: {
@@ -127,6 +132,7 @@ const INITIAL_ROOMS: Room[] = [
     id: 'room-bedroom',
     name: 'Primary Bedroom',
     image: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?ixlib=rb-1.2.1&auto=format&fit=crop&w=1200&q=80',
+    imageAfter: 'https://images.unsplash.com/photo-1616594039964-ae9021a400a0?ixlib=rb-1.2.1&auto=format&fit=crop&w=1200&q=80',
     isUnsplash: true,
     lastScanned: '2 hours ago',
     stats: {
@@ -179,6 +185,7 @@ const INITIAL_ROOMS: Room[] = [
     id: 'room-office',
     name: 'Home Office',
     image: 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?ixlib=rb-1.2.1&auto=format&fit=crop&w=1200&q=80',
+    imageAfter: 'https://images.unsplash.com/photo-1505797149-43b0069ec26b?ixlib=rb-1.2.1&auto=format&fit=crop&w=1200&q=80',
     isUnsplash: true,
     lastScanned: 'Yesterday',
     stats: {
@@ -349,10 +356,94 @@ export default function App() {
 
   // File Upload Drag & Drop State
   const [isDragging, setIsDragging] = useState(false);
+  const [isDraggingAfter, setIsDraggingAfter] = useState(false);
+
+  // View modes: before, after, slider (interactive comparison), side-by-side
+  const [viewMode, setViewMode] = useState<'before' | 'after' | 'slider' | 'side-by-side'>('before');
+  const [sliderPos, setSliderPos] = useState<number>(50);
 
   // References
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputAfterRef = useRef<HTMLInputElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  // File handler for After state photo
+  const handleImageAfterFile = (file: File) => {
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      alert("Image is too large. Please select an image smaller than 10MB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64Image = e.target?.result as string;
+      if (!base64Image) return;
+
+      setRooms(prev => prev.map(r => {
+        if (r.id === activeRoomId) {
+          return {
+            ...r,
+            imageAfter: base64Image,
+            chatHistory: [
+              ...(r.chatHistory || []),
+              {
+                role: 'model',
+                text: `✨ I've added your organized "After" space image to the ${r.name}! You can now use the "Before & After Slider" or the "Side-by-Side" view to admire your decluttering progress and compare the visual flow directly!`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              }
+            ]
+          };
+        }
+        return r;
+      }));
+      setViewMode('slider'); // Auto switch to slider to showcase the feature
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const simulateAfterImage = () => {
+    const name = activeRoom.name.toLowerCase();
+    let demoAfterUrl = 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?ixlib=rb-1.2.1&auto=format&fit=crop&w=1200&q=80'; // default kitchen
+    if (name.includes('living')) {
+      demoAfterUrl = 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?ixlib=rb-1.2.1&auto=format&fit=crop&w=1200&q=80';
+    } else if (name.includes('bedroom') || name.includes('bed')) {
+      demoAfterUrl = 'https://images.unsplash.com/photo-1616594039964-ae9021a400a0?ixlib=rb-1.2.1&auto=format&fit=crop&w=1200&q=80';
+    } else if (name.includes('office') || name.includes('work') || name.includes('desk')) {
+      demoAfterUrl = 'https://images.unsplash.com/photo-1505797149-43b0069ec26b?ixlib=rb-1.2.1&auto=format&fit=crop&w=1200&q=80';
+    }
+
+    setRooms(prev => prev.map(r => {
+      if (r.id === activeRoomId) {
+        return {
+          ...r,
+          imageAfter: demoAfterUrl,
+          chatHistory: [
+            ...(r.chatHistory || []),
+            {
+              role: 'model',
+              text: `🌿 I have simulated a beautifully curated organic modern "After" state for your ${r.name}! Slide back and forth to see the ultimate potential of a clutter-free visual path.`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            }
+          ]
+        };
+      }
+      return r;
+    }));
+    setViewMode('slider'); // Auto switch to slider to showcase
+  };
+
+  const removeAfterImage = () => {
+    setRooms(prev => prev.map(r => {
+      if (r.id === activeRoomId) {
+        const { imageAfter, ...rest } = r;
+        return rest;
+      }
+      return r;
+    }));
+    setViewMode('before');
+  };
 
   // Sync state to localStorage
   useEffect(() => {
@@ -884,6 +975,15 @@ export default function App() {
               className="hidden" 
             />
             
+            {/* Input file for custom After photo upload */}
+            <input 
+              type="file" 
+              ref={fileInputAfterRef} 
+              onChange={(e) => e.target.files && handleImageAfterFile(e.target.files[0])}
+              accept="image/*" 
+              className="hidden" 
+            />
+            
             <button 
               onClick={triggerFileInput}
               className="border border-[#CFC9C3] text-[#4A443F] hover:bg-[#F2EDE9] px-4 py-2.5 rounded-full text-xs font-medium transition-colors flex items-center gap-1.5"
@@ -912,150 +1012,418 @@ export default function App() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-full max-w-7xl mx-auto items-stretch">
             
             {/* Left: Room Analysis Canvas Frame */}
-            <div className="lg:col-span-8 flex flex-col min-h-[400px] lg:min-h-0 h-full">
+            <div className="lg:col-span-8 flex flex-col min-h-[500px] lg:min-h-0 h-full gap-4">
               
+              {/* BEFORE & AFTER CONTROL BAR */}
+              {activeRoom.image && (
+                <div className="bg-[#F2EDE9] p-1.5 rounded-2xl flex flex-wrap items-center justify-between gap-3 border border-[#E6E0D9]">
+                  <div className="flex flex-wrap items-center gap-1">
+                    <button
+                      id="btn-view-before"
+                      onClick={() => setViewMode('before')}
+                      className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                        viewMode === 'before'
+                          ? 'bg-white text-[#2D2926] shadow-sm'
+                          : 'text-[#7D746D] hover:text-[#2D2926]'
+                      }`}
+                    >
+                      <Eye className="w-3.5 h-3.5 text-[#7C876E]" />
+                      Before View
+                    </button>
+                    
+                    <button
+                      id="btn-view-slider"
+                      onClick={() => setViewMode('slider')}
+                      className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                        viewMode === 'slider'
+                          ? 'bg-white text-[#2D2926] shadow-sm'
+                          : 'text-[#7D746D] hover:text-[#2D2926]'
+                      }`}
+                    >
+                      <Sliders className="w-3.5 h-3.5 text-[#7C876E]" />
+                      Interactive Slider
+                    </button>
+
+                    <button
+                      id="btn-view-after"
+                      onClick={() => setViewMode('after')}
+                      className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                        viewMode === 'after'
+                          ? 'bg-white text-[#2D2926] shadow-sm'
+                          : 'text-[#7D746D] hover:text-[#2D2926]'
+                      }`}
+                    >
+                      <Check className="w-3.5 h-3.5 text-[#7C876E]" />
+                      After View
+                    </button>
+
+                    <button
+                      id="btn-view-split"
+                      onClick={() => setViewMode('side-by-side')}
+                      className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                        viewMode === 'side-by-side'
+                          ? 'bg-white text-[#2D2926] shadow-sm'
+                          : 'text-[#7D746D] hover:text-[#2D2926]'
+                      }`}
+                    >
+                      <Columns className="w-3.5 h-3.5 text-[#7C876E]" />
+                      Side-by-Side
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2 pr-1.5">
+                    {activeRoom.imageAfter ? (
+                      <button
+                        id="btn-reset-after"
+                        onClick={removeAfterImage}
+                        className="text-xs text-[#8C837C] hover:text-[#D69F7E] px-2.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 font-semibold cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Reset After Photo
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          id="btn-upload-after"
+                          onClick={() => fileInputAfterRef.current?.click()}
+                          className="text-xs bg-[#7C876E] hover:bg-[#68705B] text-white px-3 py-1.5 rounded-xl font-semibold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                        >
+                          <Upload className="w-3 h-3" />
+                          Upload "After"
+                        </button>
+                        <button
+                          id="btn-simulate-after"
+                          onClick={simulateAfterImage}
+                          className="text-xs border border-[#CFC9C3] hover:bg-[#EAE5DF] hover:border-[#7C876E] text-[#4A443F] px-2.5 py-1.5 rounded-xl font-semibold transition-all cursor-pointer"
+                        >
+                          Simulate After
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Outer frame matching premium shadow & borders */}
               <div 
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                className={`relative flex-1 rounded-3xl overflow-hidden shadow-md border transition-all duration-300 flex flex-col justify-center items-center ${
-                  isDragging 
+                id="canvas-container"
+                onDragOver={viewMode === 'before' ? handleDragOver : (e) => { e.preventDefault(); setIsDraggingAfter(true); }}
+                onDragLeave={viewMode === 'before' ? handleDragLeave : () => setIsDraggingAfter(false)}
+                onDrop={viewMode === 'before' ? handleDrop : (e) => { e.preventDefault(); setIsDraggingAfter(false); if (e.dataTransfer.files && e.dataTransfer.files[0]) handleImageAfterFile(e.dataTransfer.files[0]); }}
+                className={`relative flex-1 rounded-3xl overflow-hidden shadow-md border transition-all duration-300 flex flex-col justify-center items-center min-h-[400px] ${
+                  isDragging || isDraggingAfter
                     ? 'border-[#7C876E] bg-[#F2F4EF] scale-[0.99] border-2 border-dashed' 
                     : 'border-[#E6E0D9] bg-white'
                 }`}
               >
                 {activeRoom.image ? (
                   <>
-                    {/* The Room Photo */}
-                    <img 
-                      src={activeRoom.image} 
-                      className={`w-full h-full object-cover transition-opacity duration-300 ${
-                        isAnalyzing ? 'opacity-40 blur-[2px]' : 'opacity-100'
-                      }`} 
-                      alt={activeRoom.name}
-                    />
+                    {/* RENDER MODE A: Side-by-Side (requires imageAfter) */}
+                    {viewMode === 'side-by-side' && activeRoom.imageAfter ? (
+                      <div className="w-full h-full flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-[#E6E0D9]">
+                        {/* Left: Before */}
+                        <div className="flex-1 relative h-1/2 md:h-full">
+                          <img 
+                            src={activeRoom.image} 
+                            className="absolute inset-0 w-full h-full object-cover pointer-events-none" 
+                            alt="Before State"
+                          />
+                          <div className="absolute top-4 left-4 bg-black/50 backdrop-blur-sm text-white px-3 py-1.5 rounded-xl text-[10px] uppercase tracking-wider font-bold z-10">
+                            Before State
+                          </div>
+                          
+                          {/* Minor visual pulse markers in split screen before side */}
+                          {!isAnalyzing && activeRoom.markers?.map((marker) => {
+                            const markerBg = marker.type === 'clutter' ? 'bg-[#D69F7E]' : 'bg-[#7C876E]';
+                            return (
+                              <div 
+                                key={`side-m-${marker.id}`}
+                                style={{ left: `${marker.x}%`, top: `${marker.y}%` }}
+                                className="absolute -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full border border-white shadow bg-opacity-95 flex items-center justify-center text-white pointer-events-none animate-pulse"
+                              >
+                                <span className="text-[7px] font-bold">{marker.type === 'clutter' ? '!' : '•'}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
 
-                    {/* Gradient shading to make stat tags highly visible */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent pointer-events-none" />
+                        {/* Right: After */}
+                        <div className="flex-1 relative h-1/2 md:h-full">
+                          <img 
+                            src={activeRoom.imageAfter} 
+                            className="absolute inset-0 w-full h-full object-cover pointer-events-none" 
+                            alt="After Serene State"
+                          />
+                          <div className="absolute top-4 left-4 bg-[#7C876E] text-white px-3 py-1.5 rounded-xl text-[10px] uppercase tracking-wider font-bold z-10">
+                            After State
+                          </div>
+                          
+                          <div className="absolute bottom-4 right-4 bg-white/95 backdrop-blur-md px-3.5 py-2.5 rounded-2xl shadow border border-[#E6E0D9]/50">
+                            <span className="text-[8px] uppercase tracking-wider text-[#7C876E] block font-bold mb-0.5">Vesta Flow Rating</span>
+                            <span className="text-xs font-serif font-semibold text-[#2D2926]">9.8 Perfect Flow</span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : viewMode === 'slider' && activeRoom.imageAfter ? (
+                      /* RENDER MODE B: Slider comparison (requires imageAfter) */
+                      <div className="relative w-full h-full select-none">
+                        {/* Before (Bottom Layer) */}
+                        <img 
+                          src={activeRoom.image} 
+                          className="absolute inset-0 w-full h-full object-cover pointer-events-none" 
+                          alt="Before"
+                        />
 
-                    {/* AI SCANNER LINE (Visible during scan) */}
-                    {isAnalyzing && (
-                      <div className="absolute inset-x-0 top-0 h-1.5 bg-[#7C876E] shadow-[0_0_15px_#7C876E] animate-bounce pointer-events-none" />
+                        {/* After (Top Layer Clipped) */}
+                        <img 
+                          src={activeRoom.imageAfter} 
+                          style={{ clipPath: `polygon(0 0, ${sliderPos}% 0, ${sliderPos}% 100%, 0 100%)` }} 
+                          className="absolute inset-0 w-full h-full object-cover pointer-events-none" 
+                          alt="After"
+                        />
+
+                        {/* Visual Slider Line */}
+                        <div 
+                          style={{ left: `${sliderPos}%` }} 
+                          className="absolute inset-y-0 w-0.5 bg-white shadow-[0_0_8px_rgba(0,0,0,0.4)] pointer-events-none z-20"
+                        >
+                          {/* Circular handle bubble */}
+                          <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-9 h-9 rounded-full bg-white shadow-lg border border-[#E6E0D9] flex items-center justify-center pointer-events-none">
+                            <Sliders className="w-3.5 h-3.5 text-[#7C876E]" />
+                          </div>
+                        </div>
+
+                        {/* Draggable transparent input overlay covering entire picture */}
+                        <input 
+                          type="range" 
+                          min="0" 
+                          max="100" 
+                          value={sliderPos} 
+                          onChange={(e) => setSliderPos(Number(e.target.value))} 
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize z-30" 
+                          aria-label="Before and after slider position"
+                        />
+
+                        {/* Side Indicator Labels */}
+                        <div className="absolute top-4 left-4 bg-black/40 backdrop-blur-sm text-white px-2.5 py-1 rounded-lg text-[9px] uppercase tracking-wider font-bold z-10 pointer-events-none">
+                          Before View
+                        </div>
+                        <div className="absolute top-4 right-4 bg-[#7C876E]/90 backdrop-blur-sm text-white px-2.5 py-1 rounded-lg text-[9px] uppercase tracking-wider font-bold z-10 pointer-events-none">
+                          After View
+                        </div>
+                      </div>
+                    ) : viewMode === 'after' && activeRoom.imageAfter ? (
+                      /* RENDER MODE C: After Only state */
+                      <div className="relative w-full h-full">
+                        <img 
+                          src={activeRoom.imageAfter} 
+                          className="w-full h-full object-cover" 
+                          alt="Decluttered Serene State"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent pointer-events-none" />
+                        
+                        <div className="absolute top-4 left-4 bg-[#7C876E] text-[#FAF8F6] px-3.5 py-1.5 rounded-full text-[9px] uppercase tracking-widest font-bold shadow-md flex items-center gap-1.5 z-10 animate-fade-in">
+                          <Check className="w-3.5 h-3.5 text-white" />
+                          Serenity Achieved (Flow optimized)
+                        </div>
+                      </div>
+                    ) : (
+                      /* RENDER MODE D: Before View (Default) */
+                      <>
+                        {/* The Room Photo */}
+                        <img 
+                          src={activeRoom.image} 
+                          className={`w-full h-full object-cover transition-opacity duration-300 ${
+                            isAnalyzing ? 'opacity-40 blur-[2px]' : 'opacity-100'
+                          }`} 
+                          alt={activeRoom.name}
+                        />
+
+                        {/* Gradient shading to make stat tags highly visible */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent pointer-events-none" />
+
+                        {/* AI SCANNER LINE (Visible during scan) */}
+                        {isAnalyzing && (
+                          <div className="absolute inset-x-0 top-0 h-1.5 bg-[#7C876E] shadow-[0_0_15px_#7C876E] animate-bounce pointer-events-none" />
+                        )}
+
+                        {/* INTERACTIVE MARKERS OVERLAY (Not visible when loading) */}
+                        {!isAnalyzing && activeRoom.markers?.map((marker) => {
+                          const isActive = activeMarker?.id === marker.id;
+                          
+                          // Map categories to colors
+                          const markerBg = marker.type === 'clutter' 
+                            ? 'bg-[#D69F7E] text-white' 
+                            : marker.type === 'suggestion' 
+                              ? 'bg-[#7C876E] text-white' 
+                              : 'bg-[#A69C94] text-white';
+
+                          return (
+                            <div 
+                              key={marker.id}
+                              style={{ left: `${marker.x}%`, top: `${marker.y}%` }}
+                              className="absolute -translate-x-1/2 -translate-y-1/2 z-20 group"
+                            >
+                              {/* Pulsing visual core */}
+                              <button 
+                                onClick={() => setActiveMarker(isActive ? null : marker)}
+                                className={`w-7 h-7 rounded-full flex items-center justify-center border-2 border-white shadow-lg transition-all transform hover:scale-125 focus:outline-none ${markerBg} ${
+                                  isActive ? 'ring-4 ring-[#7C876E]/30 scale-110' : ''
+                                } cursor-pointer`}
+                              >
+                                {marker.type === 'clutter' ? (
+                                  <span className="text-[10px] font-bold">!</span>
+                                ) : (
+                                  <Sparkles className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+
+                              {/* Hover Tooltip (Always available on hover on desktop, or clicked active state) */}
+                              <div className={`absolute bottom-9 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur shadow-xl border border-[#E6E0D9] p-4 rounded-2xl w-60 z-30 transition-all pointer-events-auto ${
+                                isActive 
+                                  ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto' 
+                                  : 'opacity-0 translate-y-2 scale-95 pointer-events-none md:group-hover:opacity-100 md:group-hover:translate-y-0 md:group-hover:scale-100 md:group-hover:pointer-events-auto'
+                              }`}>
+                                <div className="flex items-center justify-between mb-1.5">
+                                  <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
+                                    marker.type === 'clutter' 
+                                      ? 'bg-[#FDF2ED] text-[#D69F7E]' 
+                                      : 'bg-[#F2F4EF] text-[#7C876E]'
+                                  }`}>
+                                    {marker.type === 'clutter' ? 'Clutter Detected' : marker.type === 'suggestion' ? 'Suggestion' : 'Flow Tip'}
+                                  </span>
+                                  <span className="text-[10px] text-[#A69C94] font-medium">Pos: {Math.round(marker.x)}%, {Math.round(marker.y)}%</span>
+                                </div>
+                                <h4 className="text-xs font-bold text-[#2D2926] mb-1">{marker.title}</h4>
+                                <p className="text-[11px] text-[#4A443F] leading-relaxed font-normal">{marker.description}</p>
+                                
+                                {/* Mobile action indicator */}
+                                <div className="mt-2 pt-1.5 border-t border-[#E6E0D9]/60 flex items-center justify-between">
+                                  <button 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveTab('chat');
+                                      setChatInput(`Tell me more about how to resolve "${marker.title}" near the ${activeRoom.name} coordinates...`);
+                                      setActiveMarker(null);
+                                    }}
+                                    className="text-[10px] text-[#7C876E] hover:text-[#68705B] font-semibold flex items-center gap-0.5 cursor-pointer"
+                                  >
+                                    Ask Vesta
+                                    <ChevronRight className="w-3 h-3" />
+                                  </button>
+                                  
+                                  <button 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveMarker(null);
+                                    }}
+                                    className="text-[10px] text-[#8C837C] hover:text-[#2D2926] cursor-pointer"
+                                  >
+                                    Dismiss
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </>
                     )}
 
-                    {/* INTERACTIVE MARKERS OVERLAY (Not visible when loading) */}
-                    {!isAnalyzing && activeRoom.markers?.map((marker) => {
-                      const isActive = activeMarker?.id === marker.id;
-                      
-                      // Map categories to colors
-                      const markerBg = marker.type === 'clutter' 
-                        ? 'bg-[#D69F7E] text-white' 
-                        : marker.type === 'suggestion' 
-                          ? 'bg-[#7C876E] text-white' 
-                          : 'bg-[#A69C94] text-white';
-
-                      return (
-                        <div 
-                          key={marker.id}
-                          style={{ left: `${marker.x}%`, top: `${marker.y}%` }}
-                          className="absolute -translate-x-1/2 -translate-y-1/2 z-20 group"
-                        >
-                          {/* Pulsing visual core */}
-                          <button 
-                            onClick={() => setActiveMarker(isActive ? null : marker)}
-                            className={`w-7 h-7 rounded-full flex items-center justify-center border-2 border-white shadow-lg transition-all transform hover:scale-125 focus:outline-none ${markerBg} ${
-                              isActive ? 'ring-4 ring-[#7C876E]/30 scale-110' : ''
-                            }`}
-                          >
-                            {marker.type === 'clutter' ? (
-                              <span className="text-[10px] font-bold">!</span>
-                            ) : (
-                              <Sparkles className="w-3.5 h-3.5" />
-                            )}
-                          </button>
-
-                          {/* Hover Tooltip (Always available on hover on desktop, or clicked active state) */}
-                          <div className={`absolute bottom-9 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur shadow-xl border border-[#E6E0D9] p-4 rounded-2xl w-60 z-30 transition-all pointer-events-auto ${
-                            isActive 
-                              ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto' 
-                              : 'opacity-0 translate-y-2 scale-95 pointer-events-none md:group-hover:opacity-100 md:group-hover:translate-y-0 md:group-hover:scale-100 md:group-hover:pointer-events-auto'
-                          }`}>
-                            <div className="flex items-center justify-between mb-1.5">
-                              <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
-                                marker.type === 'clutter' 
-                                  ? 'bg-[#FDF2ED] text-[#D69F7E]' 
-                                  : 'bg-[#F2F4EF] text-[#7C876E]'
-                              }`}>
-                                {marker.type === 'clutter' ? 'Clutter Detected' : marker.type === 'suggestion' ? 'Suggestion' : 'Flow Tip'}
-                              </span>
-                              <span className="text-[10px] text-[#A69C94] font-medium">Pos: {Math.round(marker.x)}%, {Math.round(marker.y)}%</span>
-                            </div>
-                            <h4 className="text-xs font-bold text-[#2D2926] mb-1">{marker.title}</h4>
-                            <p className="text-[11px] text-[#4A443F] leading-relaxed font-normal">{marker.description}</p>
-                            
-                            {/* Mobile action indicator */}
-                            <div className="mt-2 pt-1.5 border-t border-[#E6E0D9]/60 flex items-center justify-between">
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveTab('chat');
-                                  setChatInput(`Tell me more about how to resolve "${marker.title}" near the ${activeRoom.name} coordinates...`);
-                                  setActiveMarker(null);
-                                }}
-                                className="text-[10px] text-[#7C876E] hover:text-[#68705B] font-semibold flex items-center gap-0.5"
-                              >
-                                Ask Vesta
-                                <ChevronRight className="w-3 h-3" />
-                              </button>
-                              
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveMarker(null);
-                                }}
-                                className="text-[10px] text-[#8C837C] hover:text-[#2D2926]"
-                              >
-                                Dismiss
-                              </button>
-                            </div>
-                          </div>
+                    {/* CALLOUT OVERLAY WHEN VIEW MODE IS AFTER/SLIDER BUT NO AFTER IMAGE UPLOADED YET */}
+                    {(!activeRoom.imageAfter && viewMode !== 'before') && (
+                      <div className="absolute inset-0 bg-[#FAF8F6]/95 backdrop-blur-md flex flex-col items-center justify-center p-8 text-center z-25">
+                        <div className="w-14 h-14 bg-[#F2EDE9] rounded-full flex items-center justify-center mb-4 text-[#7C876E] border border-[#E6E0D9] shadow-inner">
+                          <Sparkles className="w-6 h-6" />
                         </div>
-                      );
-                    })}
+                        <h3 className="text-base font-serif font-semibold text-[#2D2926] mb-1.5">No "After" Photo Uploaded</h3>
+                        <p className="text-xs text-[#7D746D] leading-relaxed max-w-sm mb-5">
+                          Ready to compare your decluttering results? Upload an After photo to use the Interactive Slider, or try with our simulated clean workspace first!
+                        </p>
+                        <div className="flex flex-wrap gap-2 justify-center">
+                          <button 
+                            onClick={() => fileInputAfterRef.current?.click()}
+                            className="bg-[#2D2926] hover:bg-[#1A1816] text-[#FAF8F6] px-4 py-2.5 rounded-full text-xs font-semibold tracking-wide transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Upload className="w-3.5 h-3.5" />
+                            Upload After Photo
+                          </button>
+                          <button 
+                            onClick={simulateAfterImage}
+                            className="bg-[#7C876E] hover:bg-[#68705B] text-white px-4 py-2.5 rounded-full text-xs font-semibold tracking-wide transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                            Simulate Clean Space
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Stats overlay dashboard float */}
-                    <div className="absolute bottom-6 left-6 right-6 z-10">
+                    <div className="absolute bottom-6 left-6 right-6 z-15">
                       {activeRoom.stats ? (
-                        <div className="bg-[#FAF8F6]/90 backdrop-blur-md px-6 py-4 rounded-2xl flex justify-between shadow-lg border border-white/20">
-                          <div>
-                            <p className="text-[10px] uppercase tracking-wider font-bold text-[#8C837C] mb-1">Flow Score</p>
-                            <p className="text-xl md:text-2xl font-serif text-[#7C876E] font-semibold">
-                              {activeRoom.stats.flowScore.toFixed(1)} 
-                              <span className="text-xs text-[#A69C94] font-normal font-sans ml-1">/ 10</span>
-                            </p>
+                        /* UPGRADED STATS FOR AFTER/SLIDER/SIDE-BY-SIDE MODES */
+                        viewMode !== 'before' && activeRoom.imageAfter ? (
+                          <div className="bg-[#FAF8F6]/95 backdrop-blur-md px-5 py-3 rounded-2xl flex justify-between shadow-lg border border-white/40">
+                            <div>
+                              <p className="text-[9px] uppercase tracking-wider font-bold text-[#8C837C] mb-0.5">Flow Optimized</p>
+                              <p className="text-base md:text-lg font-serif text-[#7C876E] font-semibold flex items-center gap-1">
+                                {activeRoom.stats.flowScore.toFixed(1)} <span className="text-xs font-sans text-[#8C837C]">→</span> 9.8
+                                <span className="text-[9px] bg-[#F2F4EF] text-[#7C876E] px-1.5 py-0.5 rounded font-sans font-bold">
+                                  +{(9.8 - activeRoom.stats.flowScore).toFixed(1)}
+                                </span>
+                              </p>
+                            </div>
+                            
+                            <div className="w-px bg-[#E6E0D9]" />
+                            
+                            <div>
+                              <p className="text-[9px] uppercase tracking-wider font-bold text-[#8C837C] mb-0.5">Items Reduced</p>
+                              <p className="text-base md:text-lg font-serif text-[#2D2926] font-semibold">
+                                {activeRoom.stats.itemCount} <span className="text-xs font-sans text-[#8C837C]">→</span> {Math.max(4, Math.round(activeRoom.stats.itemCount * 0.4))}
+                              </p>
+                            </div>
+                            
+                            <div className="w-px bg-[#E6E0D9]" />
+                            
+                            <div>
+                              <p className="text-[9px] uppercase tracking-wider font-bold text-[#8C837C] mb-0.5">Visual Noise</p>
+                              <p className="text-base md:text-lg font-serif text-[#7C876E] font-semibold">
+                                {activeRoom.stats.visualNoise} <span className="text-xs font-sans text-[#8C837C]">→</span> Low
+                              </p>
+                            </div>
                           </div>
-                          
-                          <div className="w-px bg-[#E6E0D9]" />
-                          
-                          <div>
-                            <p className="text-[10px] uppercase tracking-wider font-bold text-[#8C837C] mb-1">Item Count</p>
-                            <p className="text-xl md:text-2xl font-serif text-[#2D2926] font-semibold">{activeRoom.stats.itemCount}</p>
+                        ) : (
+                          /* STANDARD SCANNED STATS FOR BEFORE MODE */
+                          <div className="bg-[#FAF8F6]/90 backdrop-blur-md px-6 py-4 rounded-2xl flex justify-between shadow-lg border border-white/20">
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wider font-bold text-[#8C837C] mb-1">Flow Score</p>
+                              <p className="text-xl md:text-2xl font-serif text-[#7C876E] font-semibold">
+                                {activeRoom.stats.flowScore.toFixed(1)} 
+                                <span className="text-xs text-[#A69C94] font-normal font-sans ml-1">/ 10</span>
+                              </p>
+                            </div>
+                            
+                            <div className="w-px bg-[#E6E0D9]" />
+                            
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wider font-bold text-[#8C837C] mb-1">Item Count</p>
+                              <p className="text-xl md:text-2xl font-serif text-[#2D2926] font-semibold">{activeRoom.stats.itemCount}</p>
+                            </div>
+                            
+                            <div className="w-px bg-[#E6E0D9]" />
+                            
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wider font-bold text-[#8C837C] mb-1">Visual Noise</p>
+                              <p className={`text-xl md:text-2xl font-serif font-semibold ${
+                                activeRoom.stats.visualNoise === 'High' 
+                                  ? 'text-[#D69F7E]' 
+                                  : activeRoom.stats.visualNoise === 'Medium' 
+                                    ? 'text-[#A69C94]' 
+                                    : 'text-[#7C876E]'
+                              }`}>{activeRoom.stats.visualNoise}</p>
+                            </div>
                           </div>
-                          
-                          <div className="w-px bg-[#E6E0D9]" />
-                          
-                          <div>
-                            <p className="text-[10px] uppercase tracking-wider font-bold text-[#8C837C] mb-1">Visual Noise</p>
-                            <p className={`text-xl md:text-2xl font-serif font-semibold ${
-                              activeRoom.stats.visualNoise === 'High' 
-                                ? 'text-[#D69F7E]' 
-                                : activeRoom.stats.visualNoise === 'Medium' 
-                                  ? 'text-[#A69C94]' 
-                                  : 'text-[#7C876E]'
-                            }`}>{activeRoom.stats.visualNoise}</p>
-                          </div>
-                        </div>
+                        )
                       ) : (
                         <div className="bg-white/80 backdrop-blur-sm px-6 py-4 rounded-xl text-center shadow">
                           <p className="text-xs text-[#7D746D] font-medium">Scans provide room harmony and flow rating.</p>
@@ -1076,14 +1444,14 @@ export default function App() {
                     
                     <button 
                       onClick={triggerFileInput}
-                      className="bg-[#2D2926] hover:bg-[#1A1816] text-[#FAF8F6] px-6 py-3 rounded-full text-xs font-semibold tracking-wide transition-all shadow-sm"
+                      className="bg-[#2D2926] hover:bg-[#1A1816] text-[#FAF8F6] px-6 py-3 rounded-full text-xs font-semibold tracking-wide transition-all shadow-sm cursor-pointer"
                     >
                       Browse Media File
                     </button>
                     
                     <button 
                       onClick={() => applyFallbackScan(activeRoom)}
-                      className="mt-4 text-xs text-[#7C876E] hover:text-[#68705B] font-semibold transition-colors flex items-center gap-1"
+                      className="mt-4 text-xs text-[#7C876E] hover:text-[#68705B] font-semibold transition-colors flex items-center gap-1 cursor-pointer"
                     >
                       Start with Natural Tones demo template
                       <ArrowRight className="w-3.5 h-3.5" />
